@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Walkie Talkie Voice Chat</title>
+</head>
+<body>
+    <h1>Walkie Talkie Voice Chat</h1>
+
+    <button id="startButton" onclick="startChat()">Start Chat</button>
+    <button id="endButton" onclick="endChat()">End Chat</button>
+
+    <script>
+        let localStream;
+        let localPeerConnection;
+        let remotePeerConnection;
+
+        const startButton = document.getElementById('startButton');
+        const endButton = document.getElementById('endButton');
+
+        startButton.disabled = false;
+        endButton.disabled = true;
+
+        async function startChat() {
+            try {
+                // Get user media (microphone)
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                localStream = stream;
+
+                // Create local peer connection
+                localPeerConnection = new RTCPeerConnection();
+
+                // Add local stream to peer connection
+                localStream.getTracks().forEach(track => localPeerConnection.addTrack(track, localStream));
+
+                // Create remote peer connection
+                remotePeerConnection = new RTCPeerConnection();
+
+                // Add remote stream handler
+                remotePeerConnection.ontrack = handleRemoteStreamAdded;
+
+                // Exchange ICE candidates
+                localPeerConnection.onicecandidate = event => {
+                    if (event.candidate) {
+                        remotePeerConnection.addIceCandidate(event.candidate);
+                    }
+                };
+
+                remotePeerConnection.onicecandidate = event => {
+                    if (event.candidate) {
+                        localPeerConnection.addIceCandidate(event.candidate);
+                    }
+                };
+
+                // Set local description and create offer
+                await localPeerConnection.setLocalDescription(await localPeerConnection.createOffer());
+
+                // Set remote description and create answer
+                await remotePeerConnection.setRemoteDescription(localPeerConnection.localDescription);
+                await remotePeerConnection.setLocalDescription(await remotePeerConnection.createAnswer());
+
+                // Set local description on local peer connection
+                await localPeerConnection.setRemoteDescription(remotePeerConnection.localDescription);
+
+                startButton.disabled = true;
+                endButton.disabled = false;
+            } catch (error) {
+                console.error('Error starting the chat:', error);
+            }
+        }
+
+        function endChat() {
+            localPeerConnection.close();
+            remotePeerConnection.close();
+            localStream.getTracks().forEach(track => track.stop());
+
+            startButton.disabled = false;
+            endButton.disabled = true;
+        }
+
+        function handleRemoteStreamAdded(event) {
+            const remoteAudio = document.createElement('audio');
+            remoteAudio.srcObject = event.streams[0];
+            remoteAudio.autoplay = true;
+            document.body.appendChild(remoteAudio);
+        }
+    </script>
+</body>
+</html>
